@@ -6,7 +6,7 @@ A full-stack catalogue for an online painting store: a Spring Boot REST API and 
 
 | | |
 | --- | --- |
-| **Backend** | Java 17, Spring Boot 3.3, Spring Data JPA, Bean Validation, H2 (in-memory), Maven |
+| **Backend** | Java 17, Spring Boot 3.3, Spring Data JPA, Bean Validation, Flyway, PostgreSQL (H2 for tests and no-Docker runs), Maven |
 | **Frontend** | React 19, TypeScript, Vite, Tailwind CSS v4, React Router, Vitest + Testing Library |
 | **CI / security** | GitHub Actions: backend `verify`, frontend audit + test + build, CodeQL, dependency review; Dependabot for updates |
 
@@ -25,16 +25,16 @@ npm install
 npm run dev
 ```
 
-**With Docker instead** (no JDK or Node needed): `docker compose up --build`, then open http://localhost:3000. Setup steps for Windows, configuration and troubleshooting are in [docs/docker.md](docs/docker.md).
+**With Docker instead** (no JDK or Node needed): `docker compose up --build`, then open http://localhost:3000. This starts PostgreSQL too, and **your data is kept** between restarts (until you run `docker compose down -v`). Setup steps for Windows, backups, configuration and troubleshooting are in [docs/docker.md](docs/docker.md).
 
-The default `dev` profile loads ten public-domain paintings (images from Wikimedia Commons), so the catalogue is populated on first start. Data lives in memory and resets on every restart.
+The default `dev` profile loads ten public-domain paintings (images from Wikimedia Commons), so the catalogue is populated on first start. Without Docker the data lives in memory and resets on every restart; with Docker it is stored in PostgreSQL.
 
 Browsing is public. To add, edit or delete paintings, click **Sign in** and use the dev administrator `admin` / `admin12345` (created by the `dev` profile only; see [Security](#security)).
 
 ## Architecture
 
 ```text
-Browser ──► React SPA (Vite) ──/api──► Spring Boot ──► H2 (dev)
+Browser ──► React SPA (Vite) ──/api──► Spring Boot ──► PostgreSQL (Docker) / H2 (tests, no-Docker)
             validates responses        controller → service → repository
             at runtime                 DTOs at the edge, JPA entity inside
 ```
@@ -120,6 +120,7 @@ The schema is owned by [Flyway](https://flywaydb.org); Hibernate only validates 
 | --- | --- | --- |
 | `backend/src/main/resources/db/migration` | every profile | Schema (`V1__create_paintings.sql`). Add new changes as new versioned files; never edit an applied one. |
 | `backend/src/main/resources/db/dev` | `dev` only | Sample paintings (`V1000__…`). Versions start at 1000 so they sort after schema migrations. |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | in-memory H2 | The database. docker-compose sets these for its PostgreSQL. **Required** (no H2 fallback) when the profile is not `dev`, so a misconfigured deployment can't quietly lose data. |
 | `APP_CORS_ALLOWED_ORIGINS` | `http://localhost:5173` | Comma-separated browser origins allowed to call `/api/**`. |
 | `APP_JWT_SECRET` | none (required outside `dev`) | HMAC signing key, at least 32 bytes. Keep it in a secrets manager; rotating it signs everyone out. |
 | `APP_JWT_TTL` | `60m` | Access-token lifetime. |
@@ -130,7 +131,8 @@ Frontend: see [`frontend/README.md`](frontend/README.md) (`VITE_API_BASE_URL`, `
 ## Testing
 
 ```bash
-cd backend  && ./mvnw verify    # unit (Mockito), repository (@DataJpaTest) and API integration tests (MockMvc + H2)
+cd backend  && ./mvnw verify    # unit (Mockito), repository (@DataJpaTest) and API integration tests (MockMvc + H2),
+                                # plus tests against a real PostgreSQL started by Testcontainers (needs Docker; skipped without it)
 cd frontend && npm test         # component, page, API-client and validation tests
 k6 run load-tests/catalogue.js  # load test with pass/fail latency targets (see docs/performance.md)
 ```
@@ -149,7 +151,7 @@ docs/       Specs, roadmap, performance targets, AWS OIDC guide
 ## Scope and known limitations
 
 - **Authentication is deliberately minimal:** no refresh tokens or logout-on-server (a token stays valid until it expires, and its role is trusted until then), no login rate limiting or lockout, no password reset or email verification, no user-management endpoints. All are noted in [`docs/roadmap.md`](docs/roadmap.md).
-- **H2 is in-memory and development-only.** The schema is already managed by Flyway migrations; adding a PostgreSQL profile is on the roadmap.
+- **The database is a single local PostgreSQL container.** Data persists in a Docker volume, but there are no automated backups, replication or managed hosting (Amazon RDS is on the roadmap). Running without Docker uses in-memory H2, which loses data on restart.
 - **Images are URLs only** (no upload/storage yet). The seed data hot-links Wikimedia Commons.
 - Checkout, payments and orders are out of scope for this milestone.
 

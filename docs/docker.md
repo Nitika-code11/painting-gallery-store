@@ -3,10 +3,9 @@
 Docker packages each part of the app, with everything it needs, into an **image**; a running copy of an image is a
 **container**. Anyone with Docker gets the same result on any machine, with no JDK, Node or Maven installed.
 
-> **Status:** the Docker files are written and their YAML syntax is checked, but they have **not been built on a
-> machine with Docker yet** (Docker was not installed on the development computer). The `docker` job in
-> [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) builds the images and smoke-tests the running stack on every
-> push, so a green CI run is the first real proof. Expect to fix small things on the first local run.
+> **Status:** built and run on Windows 11 with Docker Desktop, and also built and smoke-tested on every push by the
+> `docker` job in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). That job also proves **data survives**
+> removing and recreating the containers.
 
 ## What is in the setup
 
@@ -23,7 +22,10 @@ Docker packages each part of the app, with everything it needs, into an **image*
  your browser ──► localhost:3000  frontend container (nginx)
                                      │  /api/*  (internal Docker network)
                                      ▼
-                  localhost:8080  backend container (Spring Boot, H2 in memory)
+                  localhost:8080  backend container (Spring Boot)
+                                     │  JDBC
+                                     ▼
+                  127.0.0.1:5432  db container (PostgreSQL 16) ──► "pgdata" volume (your data lives here)
 ```
 
 ## One-time setup on Windows 11
@@ -83,14 +85,51 @@ docker build -t painting-backend ./backend
 docker run --rm -p 8080:8080 -e SPRING_PROFILES_ACTIVE=dev painting-backend
 ```
 
+## Your data is kept (PostgreSQL)
+
+Paintings and accounts are stored in PostgreSQL, whose files live in a Docker **volume** named `pgdata`, outside
+any container. Containers can be stopped, removed and rebuilt without touching it.
+
+| You run | Effect on the data |
+| --- | --- |
+| `docker compose stop` / `docker compose down` | **Kept.** Containers go, the volume stays. |
+| `docker compose up --build` after changing code | **Kept.** |
+| Restarting Windows or Docker Desktop | **Kept.** |
+| `docker compose down -v` | **Deleted.** `-v` removes the volumes. Use it to reset to a fresh start. |
+| Deleting the volume in Docker Desktop | **Deleted.** |
+
+The sample paintings are loaded **once**, when the database is first created, and are never loaded again. If you
+delete one it stays deleted. Database changes are applied by Flyway migrations at backend startup.
+
+Look inside the database, or take a backup:
+
+```powershell
+docker compose exec db psql -U painting -d paintings -c "select id, title, price from paintings;"
+docker compose exec -T db pg_dump -U painting paintings > backup.sql          # backup to a file
+Get-Content backup.sql | docker compose exec -T db psql -U painting paintings   # restore into an empty database
+```
+
+Port 5432 is published on `127.0.0.1` only, so GUI tools such as DBeaver can connect to `localhost:5432`
+(database `paintings`, user `painting`, password from `DB_PASSWORD`). Remove the `ports:` entry of `db` in
+`docker-compose.yml` to close it.
+
+**Changing the database password:** PostgreSQL creates its user only when the volume is empty, so set `DB_PASSWORD`
+in `.env` *before* the first start. To change it later, either change the user's password inside the database
+(`ALTER USER`) and `.env` together, or reset with `docker compose down -v` (this deletes the data).
+
+Running the backend **outside Docker** (`mvnw spring-boot:run`) still uses a throwaway in-memory database unless you
+point it at PostgreSQL: start `docker compose up -d db`, then set `DB_URL=jdbc:postgresql://localhost:5432/paintings`,
+`DB_USERNAME=painting` and `DB_PASSWORD=painting_dev_password` before running it.
+
 ## Two ways to run: dev and production-like
 
 | | `dev` (default in compose) | production-like |
 | --- | --- | --- |
-| Sample paintings | yes | no (empty catalogue) |
+| Sample paintings | yes (once) | no (empty catalogue) |
 | Swagger UI / H2 console | yes | no |
 | Administrator | `admin` / `admin12345` (public, throwaway) | the one you configure |
 | Signing key | built-in dev key | **you must provide `APP_JWT_SECRET`** |
+| Database | PostgreSQL from compose | PostgreSQL; `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` are **required** |
 
 For the production-like run, copy `.env.example` to `.env` and set:
 
@@ -111,14 +150,16 @@ running it without any settings is safe.
 | --- | --- |
 | `docker: command not found` | Docker Desktop is not installed, or the terminal was opened before installing. Open a new one. |
 | `error during connect ... pipe/dockerDesktopLinuxEngine` | Docker Desktop is not running. Start it and wait for *Engine running*. |
-| Backend container keeps restarting | `docker compose logs backend`. Usually `APP_JWT_SECRET` is missing or shorter than 32 bytes. |
+| Backend container keeps restarting | `docker compose logs backend`. Usually `APP_JWT_SECRET` is missing or shorter than 32 bytes, or (with the prod profile) `DB_URL` is unset: the log ends with `URL must start with 'jdbc'`. |
+| Backend says `password authentication failed` | `DB_PASSWORD` in `.env` differs from the one the volume was created with. Restore the old value, or reset with `docker compose down -v` (deletes the data). |
 | `port is already allocated` | Something else uses 3000 or 8080 (for example the `npm run dev` or `mvnw spring-boot:run` you started earlier). Stop it, or change the left-hand port in `docker-compose.yml`. |
 | Frontend shows "Couldn't reach the server" | The backend is not healthy yet or crashed: `docker compose ps` and check its logs. |
 | `mvnw: not found` / `bad interpreter` during build | A Windows line-ending problem. The Dockerfile already strips `\r`; if it persists, run `git add --renormalize .`. |
 
 ## Before using these images for real
 
-- **Data is lost on restart.** The database is in-memory H2. A real deployment needs PostgreSQL (roadmap, Phase 6).
+- **A single PostgreSQL container is fine for development, not for production.** A deployment should use a managed
+  database (for example Amazon RDS) with automated backups, and the backend pointed at it with `DB_URL` etc.
 - **Publish images to a registry** (GitHub Container Registry or Amazon ECR) from CI, tagged with the commit, and
   deploy that exact image, rather than building on the server.
 - **Scan images** for known vulnerabilities (for example Trivy or Docker Scout) as a CI step.

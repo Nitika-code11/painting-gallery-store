@@ -7,10 +7,13 @@ spring:
     # `mvnw spring-boot:run` works out of the box (dev profile); override with SPRING_PROFILES_ACTIVE.
     default: dev
   datasource:
-    # In-memory H2 database. DB_CLOSE_DELAY=-1 keeps it alive until the JVM exits, not when the last connection closes.
-    url: jdbc:h2:mem:paintingdb;DB_CLOSE_DELAY=-1
-    username: sa
-    password:
+    # Which database to use. With nothing set this is an in-memory H2 database (data is lost when the app stops),
+    # which is handy for tests and for running without Docker. DB_CLOSE_DELAY=-1 keeps it alive until the JVM exits.
+    # To keep data, point DB_URL at PostgreSQL, e.g. jdbc:postgresql://localhost:5432/paintings
+    # (docker-compose.yml does this). Non-dev profiles refuse to fall back to H2: see application-prod.yml.
+    url: ${DB_URL:jdbc:h2:mem:paintingdb;DB_CLOSE_DELAY=-1}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
   jpa:
     # false = do not keep a database session open while the view/JSON is rendered (avoids hidden lazy queries).
     open-in-view: false

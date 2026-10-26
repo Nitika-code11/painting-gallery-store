@@ -1,0 +1,11 @@
+# Used when SPRING_PROFILES_ACTIVE=prod (the Docker image's default).
+# A production-like run must have a real, persistent database: unlike the base file there are NO defaults here,
+# so a missing DB_URL stops the app at startup instead of quietly running on an in-memory database and losing
+# data on the next restart.
+# Symptom when DB_URL is missing: the log ends with "Failed to instantiate HikariDataSource ... URL must start
+# with 'jdbc'" (the unset ${DB_URL} is passed through literally). Fix: set DB_URL, DB_USERNAME and DB_PASSWORD.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}

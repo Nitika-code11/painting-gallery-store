@@ -35,7 +35,8 @@
 - [ ] Validate file type and size; do not make uploaded files public by default
 
 ## Phase 6: Production readiness
-- [ ] Replace H2 with PostgreSQL (local Docker first, then Amazon RDS)
+- [x] Replace H2 with PostgreSQL locally in Docker, with a persistent volume (see [docker.md](docker.md))
+- [ ] Move the database to Amazon RDS (managed backups, Multi-AZ, credentials from Secrets Manager)
 - [ ] Store secrets in environment variables / AWS Secrets Manager
 - [ ] Add structured logs, health checks, metrics, and tracing
 - [x] Add Dockerfile and container build (images, compose and a CI smoke test are written; see [docker.md](docker.md). First verified by the CI `docker` job, not yet built locally)
@@ -53,7 +54,7 @@
 
 ## Suggested build order
 1. Finish catalogue tests and DTOs.
-2. Add PostgreSQL (Flyway migrations are already in place).
+2. ~~Add PostgreSQL~~ (done locally; managed RDS is the remaining step).
 3. Add authentication and admin authorization.
 4. Implement cart and order workflows.
 5. Add sandbox payments and S3 image storage.

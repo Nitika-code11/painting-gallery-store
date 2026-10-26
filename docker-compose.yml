@@ -1,16 +1,44 @@
 # Runs the whole application locally with one command:   docker compose up --build
 #   UI:           http://localhost:3000      (nginx serving the React app, forwarding /api to the backend)
 #   API + Swagger http://localhost:8080      (Swagger UI at /swagger-ui.html, dev profile only)
+#   Database:     PostgreSQL, data kept in the "pgdata" Docker volume
 #
-# By default this runs the "dev" profile: sample paintings, API docs, and a throwaway administrator
-# (admin / admin12345). Those are public values meant for a developer's machine ONLY.
+# DATA IS KEPT across `docker compose down` and restarts. It is deleted only by `docker compose down -v`
+# (the -v removes the volume) or by deleting the volume in Docker Desktop.
+#
+# By default this runs the "dev" profile: sample paintings (loaded once, on the first start), API docs, and a
+# throwaway administrator (admin / admin12345). Those are public values meant for a developer's machine ONLY.
 # To try a production-like run (no samples, no docs, your own secrets), copy .env.example to .env and edit it.
 services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      # ${NAME:-default}: take NAME from your shell or the .env file, else use the default after ":-".
+      POSTGRES_DB: ${DB_NAME:-paintings}
+      POSTGRES_USER: ${DB_USERNAME:-painting}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-painting_dev_password}   # local default only: set your own in .env
+    volumes:
+      - pgdata:/var/lib/postgresql/data   # named volume: survives container removal
+    ports:
+      # Published on this computer only (127.0.0.1), so tools such as psql or DBeaver can connect while you develop.
+      # Remove this line if you do not need that.
+      - "127.0.0.1:5432:5432"
+    healthcheck:
+      # Healthy once PostgreSQL accepts connections for this user and database.
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   backend:
     build: ./backend
     environment:
-      # ${NAME:-default}: take NAME from your shell or the .env file, else use the default after ":-".
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-dev}
+      # Where the backend finds the database. "db" is the service name above; Docker's network resolves it.
+      DB_URL: jdbc:postgresql://db:5432/${DB_NAME:-paintings}
+      DB_USERNAME: ${DB_USERNAME:-painting}
+      DB_PASSWORD: ${DB_PASSWORD:-painting_dev_password}
       APP_JWT_SECRET: ${APP_JWT_SECRET:-}           # required (32+ bytes) outside the dev profile
       APP_ADMIN_USERNAME: ${APP_ADMIN_USERNAME:-}   # first administrator created at startup
       APP_ADMIN_PASSWORD: ${APP_ADMIN_PASSWORD:-}
@@ -18,6 +46,9 @@ services:
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://localhost:3000}
     ports:
       - "8080:8080"   # host:container. Remove this line to keep the API reachable only through the frontend.
+    depends_on:
+      db:
+        condition: service_healthy   # start the API only once the database accepts connections
     restart: unless-stopped
 
   frontend:
@@ -26,10 +57,13 @@ services:
       args:
         VITE_ENABLE_MUTATIONS: ${VITE_ENABLE_MUTATIONS:-true}
     environment:
-      BACKEND_URL: http://backend:8080   # "backend" is the service name above; Docker's network resolves it
+      BACKEND_URL: http://backend:8080   # "backend" is the service name above
     ports:
       - "3000:8080"
     depends_on:
       backend:
         condition: service_healthy   # start nginx only once the API's health check passes
     restart: unless-stopped
+
+volumes:
+  pgdata:   # created automatically on first start

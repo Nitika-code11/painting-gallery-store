@@ -29,7 +29,8 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven # reuse downloaded dependencies between runs
-      # Compiles, runs all unit/repository/API tests against in-memory H2, and builds the jar.
+      # Compiles, runs all unit/repository/API tests (H2) plus the PostgreSQL tests (Testcontainers starts a real
+      # PostgreSQL; the runner has Docker), and builds the jar.
       - name: Build and test
         run: ./mvnw -B verify
 
@@ -86,6 +87,15 @@ jobs:
             -H 'Content-Type: application/json' -H "Authorization: Bearer $token" \
             -d '{"title":"CI painting","artist":"CI","price":1,"stock":1}')
           test "$code" = "201"
+      # Persistence: remove every container (the database volume is kept), start again, and check the painting
+      # created above is still there and the 10 sample paintings were not loaded a second time.
+      - name: Data survives removing and recreating the containers
+        run: |
+          set -euo pipefail
+          docker compose down
+          docker compose up -d --wait --wait-timeout 240
+          curl -fsS "http://localhost:3000/api/paintings?title=CI%20painting" | grep -q '"totalElements":1'
+          curl -fsS http://localhost:3000/api/paintings | grep -q '"totalElements":11'
       - name: Show container logs if something failed
         if: failure()
         run: docker compose logs --no-color

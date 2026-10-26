@@ -21,6 +21,9 @@
 
   <properties>
     <java.version>17</java.version>
+    <!-- Overrides Spring Boot's managed Testcontainers version: older ones cannot talk to Docker Engine 29+
+         (its minimum API version is newer than the one they ask for), which silently skips the PostgreSQL tests. -->
+    <testcontainers.version>1.21.4</testcontainers.version>
   </properties>
 
   <dependencies>
@@ -65,7 +68,18 @@
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
     </dependency>
-    <!-- In-memory development database; "runtime" because code never references it directly. -->
+    <!-- Flyway 10+ ships each database's support as a separate module; this one lets Flyway migrate PostgreSQL. -->
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-database-postgresql</artifactId>
+    </dependency>
+    <!-- PostgreSQL JDBC driver: the real, persistent database used in Docker and deployments. -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+    <!-- In-memory database for tests and for running without Docker; "runtime" because code never references it directly. -->
     <dependency>
       <groupId>com.h2database</groupId>
       <artifactId>h2</artifactId>
@@ -81,6 +95,22 @@
     <dependency>
       <groupId>org.springframework.security</groupId>
       <artifactId>spring-security-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <!-- Testcontainers: starts a throwaway real PostgreSQL in Docker for one test class (skipped if Docker is absent). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-testcontainers</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>
