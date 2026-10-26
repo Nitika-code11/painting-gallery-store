@@ -14,9 +14,9 @@
   </parent>
 
   <groupId>com.example</groupId>
-  <artifactId>painting-ecommerce</artifactId>
+  <artifactId>painting-gallery-store</artifactId>
   <version>0.1.0-SNAPSHOT</version>
-  <name>painting-ecommerce</name>
+  <name>painting-gallery-store</name>
   <description>REST API for a painting store</description>
 
   <properties>

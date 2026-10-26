@@ -2,7 +2,7 @@
 # Values like ${NAME:default} read the environment variable NAME, or use "default" when it is not set.
 spring:
   application:
-    name: painting-ecommerce
+    name: painting-gallery-store
   profiles:
     # `mvnw spring-boot:run` works out of the box (dev profile); override with SPRING_PROFILES_ACTIVE.
     default: dev

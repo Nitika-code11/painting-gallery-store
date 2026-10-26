@@ -1,4 +1,4 @@
-# Painting Store
+# Painting Gallery Store
 
 [![CI](https://github.com/Nitika-code11/ecommerce-painting/actions/workflows/ci.yml/badge.svg)](https://github.com/Nitika-code11/ecommerce-painting/actions/workflows/ci.yml)
 
