@@ -21,6 +21,7 @@ import org.springframework.security.web.SecurityFilterChain;
  * first, but it only matches /h2-console/**, so every API request still goes through {@link SecurityConfig}.
  * Both conditions below keep it out of any non-dev environment.
  */
+
 @Configuration
 @Profile("dev")
 @ConditionalOnProperty(name = "spring.h2.console.enabled", havingValue = "true")
