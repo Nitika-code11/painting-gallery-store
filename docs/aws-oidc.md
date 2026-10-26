@@ -33,7 +33,7 @@ short-lived, automatically issued identity instead of an access key stored in Gi
          "Condition": {
            "StringEquals": {
              "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-             "token.actions.githubusercontent.com:sub": "repo:Nitika-code11/ecommerce-painting:ref:refs/heads/main"
+             "token.actions.githubusercontent.com:sub": "repo:Nitika-code11/painting-gallery-store:ref:refs/heads/main"
            }
          }
        }

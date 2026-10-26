@@ -1,6 +1,6 @@
 # Painting Gallery Store
 
-[![CI](https://github.com/Nitika-code11/ecommerce-painting/actions/workflows/ci.yml/badge.svg)](https://github.com/Nitika-code11/ecommerce-painting/actions/workflows/ci.yml)
+[![CI](https://github.com/Nitika-code11/painting-gallery-store/actions/workflows/ci.yml/badge.svg)](https://github.com/Nitika-code11/painting-gallery-store/actions/workflows/ci.yml)
 
 A full-stack catalogue for an online painting store: a Spring Boot REST API and a React single-page app.
 
